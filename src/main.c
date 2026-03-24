@@ -1,14 +1,15 @@
 #include "main.h"
+#include "runtime_control.h"
 
 SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart2;
 LR1121_HandleTypeDef hlr1121;
+static RuntimeControlCtx g_runtime;
 
 int main(void)
 {
 	HAL_StatusTypeDef st;
-	const uint8_t demo_payload[] = {'H', 'I', '-', 'L', 'R', '1', '1', '2', '1'};
-	const LR1121_LoRaProfile demo_profile = {
+	const LR1121_LoRaProfile default_profile = {
 		//.frequency_hz = 2403000000UL,
 		.frequency_hz = 868030000UL,
 		.modulation = {
@@ -20,7 +21,7 @@ int main(void)
 		.packet = {
 			.preamble_len = 8,
 			.header_type = LR1121_LORA_HEADER_EXPLICIT,
-			.payload_len = (uint8_t)sizeof(demo_payload),
+			.payload_len = 16,
 			.crc = LR1121_LORA_CRC_ON,
 			.iq = LR1121_LORA_IQ_STANDARD,
 		},
@@ -57,7 +58,8 @@ int main(void)
 		Error_Handler();
 	}
 
-	st = LR1121_ConfigureLoRa(&hlr1121, &demo_profile);
+	RuntimeControl_Init(&g_runtime, &hlr1121, &huart2, &default_profile);
+	st = RuntimeControl_ApplyInitial(&g_runtime);
 	if (st != HAL_OK)
 	{
 		const LR1121_DebugInfo *dbg = LR1121_GetLastDebugInfo();
@@ -72,23 +74,43 @@ int main(void)
 		Error_Handler();
 	}
 
-	uart_log("LR1121 ready, sending demo LoRa packet\r\n");
+	RuntimeControl_PrintWelcome(&g_runtime);
 
 	while (1)
 	{
-		const uint32_t tx_period_ms = 100U;
-		uint32_t loop_start_ms = HAL_GetTick();
+		uint32_t wait_start_ms;
 		uint32_t irq_mask = 0U;
+		uint8_t payload_len;
+		uint32_t tx_period_ms;
+
+		RuntimeControl_Poll(&g_runtime);
+		payload_len = RuntimeControl_GetPayloadLen(&g_runtime);
+		tx_period_ms = RuntimeControl_GetTxPeriodMs(&g_runtime);
+		if (tx_period_ms < 10U)
+		{
+			tx_period_ms = 10U;
+		}
+
+		if (!RuntimeControl_IsTxEnabled(&g_runtime))
+		{
+			wait_start_ms = HAL_GetTick();
+			while ((HAL_GetTick() - wait_start_ms) < tx_period_ms)
+			{
+				RuntimeControl_Poll(&g_runtime);
+				HAL_Delay(1);
+			}
+			continue;
+		}
 
 		HAL_GPIO_WritePin(LR1121_TX_IND_PORT, LR1121_TX_IND_PIN, GPIO_PIN_SET);
 
 		st = LR1121_SendLoRaPacket(&hlr1121,
-											 demo_payload,
-											 (uint8_t)sizeof(demo_payload),
+											 RuntimeControl_GetPayload(&g_runtime),
+											 payload_len,
 											 0x00FFFF);
 		if (st == HAL_OK)
 		{
-			uart_log("Demo LoRa packet queued\r\n");
+			uart_log("TX ok len=%u\r\n", (unsigned int)payload_len);
 		}
 		else
 		{
@@ -109,8 +131,28 @@ int main(void)
 
 		HAL_GPIO_WritePin(LR1121_TX_IND_PORT, LR1121_TX_IND_PIN, GPIO_PIN_RESET);
 
-		HAL_Delay(tx_period_ms);
+		wait_start_ms = HAL_GetTick();
+		while ((HAL_GetTick() - wait_start_ms) < tx_period_ms)
+		{
+			RuntimeControl_Poll(&g_runtime);
+			HAL_Delay(1);
+		}
 	}
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	RuntimeControl_OnUartRxCplt(&g_runtime, huart);
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+	RuntimeControl_OnUartError(&g_runtime, huart);
+}
+
+void USART2_IRQHandler(void)
+{
+	HAL_UART_IRQHandler(&huart2);
 }
 
 void SystemClock_Config(void)

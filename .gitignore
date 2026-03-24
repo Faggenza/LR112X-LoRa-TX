@@ -5,3 +5,5 @@
 .vscode/ipch
 .vscode
 TODO.md
+__pycache__
+*.pyc
