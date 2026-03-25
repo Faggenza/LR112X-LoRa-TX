@@ -187,6 +187,7 @@ static void print_help(void)
 {
   uart_log("Commands:\\r\\n");
   uart_log("  SHOW\\r\\n");
+  uart_log("  VBAT\\r\\n");
   uart_log("  TX START\r\n");
   uart_log("  TX STOP\r\n");
   uart_log("  SET FREQ <hz>\\r\\n");
@@ -254,6 +255,33 @@ static void process_command(RuntimeControlCtx *ctx, char *line)
   if (strcmp(p, "SHOW") == 0)
   {
     print_profile(&ctx->profile);
+    return;
+  }
+
+  if (strcmp(p, "VBAT") == 0)
+  {
+    uint8_t vbat_raw = 0U;
+    int32_t vbat_mv;
+
+    st = LR1121_GetVbat(ctx->radio, &vbat_raw);
+    if (st != HAL_OK)
+    {
+      const LR1121_DebugInfo *dbg = LR1121_GetLastDebugInfo();
+      uart_log("ERR vbat read failed st=%d stage=%u op=0x%04X irq=0x%08lX\\r\\n",
+               (int)st,
+               (unsigned int)dbg->stage,
+               (unsigned int)dbg->opcode,
+               dbg->irq);
+      return;
+    }
+
+    /* Vbat(V) = ((5 * raw / 255) - 1) * 1.35 */
+    vbat_mv = ((((int32_t)5 * (int32_t)vbat_raw * 1000) / 255) - 1000) * 135 / 100;
+
+    uart_log("VBAT raw=%u v=%ld.%03ldV\\r\\n",
+             (unsigned int)vbat_raw,
+             (long)(vbat_mv / 1000),
+             (long)labs(vbat_mv % 1000));
     return;
   }
 

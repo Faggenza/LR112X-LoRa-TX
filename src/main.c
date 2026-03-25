@@ -10,7 +10,6 @@ int main(void)
 {
 	HAL_StatusTypeDef st;
 	const LR1121_LoRaProfile default_profile = {
-		//.frequency_hz = 2403000000UL,
 		.frequency_hz = 868030000UL,
 		.modulation = {
 			.sf = LR1121_LORA_SF12,

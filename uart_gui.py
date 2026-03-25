@@ -119,6 +119,7 @@ class App(tk.Tk):
         ttk.Button(actions, text="TX START", command=lambda: self._send("TX START")).pack(side=tk.LEFT, padx=2)
         ttk.Button(actions, text="TX STOP", command=lambda: self._send("TX STOP")).pack(side=tk.LEFT, padx=2)
         ttk.Button(actions, text="SHOW", command=lambda: self._send("SHOW")).pack(side=tk.LEFT, padx=2)
+        ttk.Button(actions, text="VBAT", command=lambda: self._send("VBAT")).pack(side=tk.LEFT, padx=2)
         ttk.Button(actions, text="HELP", command=lambda: self._send("HELP")).pack(side=tk.LEFT, padx=2)
 
         tx_ctrl = ttk.LabelFrame(root, text="TX Control")
@@ -177,6 +178,7 @@ class App(tk.Tk):
             self._append_log(f"[Connected] {port} @ {baud}\n")
             self._send("PING")
             self._send("SHOW")
+            self._send("VBAT")
         except Exception as exc:
             messagebox.showerror("Connect error", str(exc))
 

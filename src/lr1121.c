@@ -43,6 +43,54 @@ static HAL_StatusTypeDef lr1121_check_error_irq(LR1121_HandleTypeDef *dev,
   return HAL_OK;
 }
 
+static void lr1121_get_subghz_pa_cfg(int8_t power_dbm,
+                                     LR1121_PaSel *pa_sel,
+                                     LR1121_PaRegSupply *pa_supply,
+                                     uint8_t *pa_duty_cycle,
+                                     uint8_t *pa_hp_sel)
+{
+  if ((pa_sel == NULL) || (pa_supply == NULL) || (pa_duty_cycle == NULL) || (pa_hp_sel == NULL))
+  {
+    return;
+  }
+
+  if (power_dbm > 14)
+  {
+    *pa_sel = LR1121_PA_SEL_HP;
+    /* LR1121 HP PA can require VBAT for high output power depending on board routing. */
+    *pa_supply = LR1121_PA_REG_SUPPLY_VBAT;
+
+  /* Semtech-style HP PA tuning points for sub-GHz output levels. */
+    if (power_dbm >= 22)
+    {
+      *pa_duty_cycle = 0x04;
+      *pa_hp_sel = 0x07;
+    }
+    else if (power_dbm >= 20)
+    {
+      *pa_duty_cycle = 0x03;
+      *pa_hp_sel = 0x05;
+    }
+    else if (power_dbm >= 17)
+    {
+      *pa_duty_cycle = 0x02;
+      *pa_hp_sel = 0x03;
+    }
+    else
+    {
+      *pa_duty_cycle = 0x02;
+      *pa_hp_sel = 0x02;
+    }
+  }
+  else
+  {
+    *pa_sel = LR1121_PA_SEL_LP;
+    *pa_supply = LR1121_PA_REG_SUPPLY_VREG;
+    *pa_duty_cycle = 0x00;
+    *pa_hp_sel = 0x00;
+  }
+}
+
 static void lr1121_select(LR1121_HandleTypeDef *dev)
 {
   HAL_GPIO_WritePin(dev->cs_port, dev->cs_pin, GPIO_PIN_RESET);
@@ -356,6 +404,26 @@ HAL_StatusTypeDef LR1121_WaitForDio1Irq(LR1121_HandleTypeDef *dev, uint32_t time
 HAL_StatusTypeDef LR1121_GetStatus(LR1121_HandleTypeDef *dev, uint8_t *status)
 {
   return LR1121_ReadCommand(dev, LR1121_CMD_SYSTEM_GET_STATUS, status, 1);
+}
+
+HAL_StatusTypeDef LR1121_GetVbat(LR1121_HandleTypeDef *dev, uint8_t *vbat_raw)
+{
+  uint8_t response[2] = {0};
+  HAL_StatusTypeDef status;
+
+  if (vbat_raw == NULL)
+  {
+    return HAL_ERROR;
+  }
+
+  status = LR1121_ReadCommand(dev, LR1121_CMD_SYSTEM_GET_VBAT, response, sizeof(response));
+  if (status != HAL_OK)
+  {
+    return status;
+  }
+
+  *vbat_raw = response[1];
+  return HAL_OK;
 }
 
 HAL_StatusTypeDef LR1121_GetErrors(LR1121_HandleTypeDef *dev, uint16_t *errors)
@@ -791,10 +859,11 @@ HAL_StatusTypeDef LR1121_ConfigureLoRa(LR1121_HandleTypeDef *dev, const LR1121_L
   }
   else
   {
-    pa_sel = LR1121_PA_SEL_HP;
-    pa_supply = LR1121_PA_REG_SUPPLY_VBAT;
-    pa_duty_cycle = 0x04;
-    pa_hp_sel = 0x07;
+    lr1121_get_subghz_pa_cfg(profile->tx.power_dbm,
+                             &pa_sel,
+                             &pa_supply,
+                             &pa_duty_cycle,
+                             &pa_hp_sel);
   }
 
   status = LR1121_SetPaConfig(dev,

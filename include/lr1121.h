@@ -234,6 +234,7 @@ HAL_StatusTypeDef LR1121_SetTcxoMode(LR1121_HandleTypeDef *dev, uint8_t tune, ui
 HAL_StatusTypeDef LR1121_Calibrate(LR1121_HandleTypeDef *dev, uint8_t calib_mask);
 HAL_StatusTypeDef LR1121_CalibrateImage(LR1121_HandleTypeDef *dev, uint8_t freq1, uint8_t freq2);
 HAL_StatusTypeDef LR1121_GetStatus(LR1121_HandleTypeDef *dev, uint8_t *status);
+HAL_StatusTypeDef LR1121_GetVbat(LR1121_HandleTypeDef *dev, uint8_t *vbat_raw);
 HAL_StatusTypeDef LR1121_GetErrors(LR1121_HandleTypeDef *dev, uint16_t *errors);
 HAL_StatusTypeDef LR1121_ClearErrors(LR1121_HandleTypeDef *dev);
 HAL_StatusTypeDef LR1121_SetRegMode(LR1121_HandleTypeDef *dev, uint8_t reg_mode);
