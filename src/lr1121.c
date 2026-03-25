@@ -527,6 +527,9 @@ HAL_StatusTypeDef LR1121_ConfigureLoRa(LR1121_HandleTypeDef *dev, const LR1121_L
   uint8_t img_freq1;
   uint8_t img_freq2;
   LR1121_PaSel pa_sel;
+  LR1121_PaRegSupply pa_supply;
+  uint8_t pa_duty_cycle;
+  uint8_t pa_hp_sel;
 
   if ((dev == NULL) || (profile == NULL))
   {
@@ -775,13 +778,30 @@ HAL_StatusTypeDef LR1121_ConfigureLoRa(LR1121_HandleTypeDef *dev, const LR1121_L
     return status;
   }
 
-  pa_sel = (profile->frequency_hz >= 2000000000UL) ? LR1121_PA_SEL_HF : LR1121_PA_SEL_LP;
+  /* Explicit PA mapping by frequency band:
+   * - 2.4GHz band: HF PA
+   * - sub-GHz band (including 868MHz): HP PA
+   */
+  if (profile->frequency_hz >= 2000000000UL)
+  {
+    pa_sel = LR1121_PA_SEL_HF;
+    pa_supply = LR1121_PA_REG_SUPPLY_VREG;
+    pa_duty_cycle = 0x00;
+    pa_hp_sel = 0x00;
+  }
+  else
+  {
+    pa_sel = LR1121_PA_SEL_HP;
+    pa_supply = LR1121_PA_REG_SUPPLY_VBAT;
+    pa_duty_cycle = 0x04;
+    pa_hp_sel = 0x07;
+  }
 
   status = LR1121_SetPaConfig(dev,
                                   pa_sel,
-                                  LR1121_PA_REG_SUPPLY_VREG,
-                                  0x04,
-                                  0x00);
+                                  pa_supply,
+                                  pa_duty_cycle,
+                                  pa_hp_sel);
   if (status != HAL_OK)
   {
     lr1121_set_debug(LR1121_DBG_CFG_SET_PA_CFG, status, LR1121_CMD_RADIO_SET_PA_CFG, 0U);
